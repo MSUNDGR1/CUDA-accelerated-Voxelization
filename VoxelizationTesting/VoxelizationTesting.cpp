@@ -4,7 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <fstream>
-
+#include <stdlib.h>
 #include "tri3D.h"
 #include "vector3D.h"
 #include "voxelMap.h"
@@ -47,7 +47,7 @@ void stl_in(string fname, vector<tri3D>& out) {
 
         if (myFile) {
             myFile.read(facet, 50);
-            vector3D normal(facet);
+            vector3D normal(facet, true);
             vector3D point1(facet + 12);
             vector3D point2(facet + 24);
             vector3D point3(facet + 36);
@@ -61,12 +61,32 @@ void stl_in(string fname, vector<tri3D>& out) {
 }
 
 
+void print(bool*** fills, int width, int height, int printLev) {
+    system("CLS");
+    bool** currLev = fills[printLev];
+    string printLine;
+    for (int h = 0; h < height; h++) {
+        printLine = "";
+        for (int w = 0; w < width; w++) {
+            if (currLev[h][w] == true) printLine += "* ";
+            else printLine += ". ";
+        }
+        cout << printLine << endl;
+    }
+}
+
 int main()
 {
     vector<tri3D> tris;
-    stl_in("Cube.stl", tris);
-    voxelMap weenor(tris);
-
+    stl_in("pyramid.stl", tris);
+    voxelMap cubeMap(tris);
+    int levPrint = 0;
+    while (levPrint != 1000) {
+        cout << "enter level to print:";
+        cin >> levPrint;
+        print(cubeMap.fills, cubeMap.width, cubeMap.height, levPrint);
+    }
+   
 
 }
     

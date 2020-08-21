@@ -4,6 +4,7 @@ class vector3D
 public:
 	vector3D();
 	vector3D(char* binary);
+	vector3D(char* binary, bool normalized);
 	vector3D(double x, double y, double z);
 	vector3D(int x, int y, int z);
 	~vector3D();

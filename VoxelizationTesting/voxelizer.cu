@@ -1,5 +1,6 @@
 #include "voxelizer.cuh"
-
+#include <string>
+#include <iostream>
 
 __global__ void vecSubDArr(int* firX, int* firY, int* firZ,
 	int* secX, int* secY, int* secZ,
@@ -7,6 +8,7 @@ __global__ void vecSubDArr(int* firX, int* firY, int* firZ,
 	outX[blockIdx.x] = firX[blockIdx.x] - secX[blockIdx.x];
 	outY[blockIdx.x] = firY[blockIdx.x] - secY[blockIdx.x];
 	outZ[blockIdx.x] = firZ[blockIdx.x] - secZ[blockIdx.x];
+	
 }
 
 __global__ void vecSubPoint(int* QY, int* QZ,
@@ -16,6 +18,7 @@ __global__ void vecSubPoint(int* QY, int* QZ,
 	outX[index] = blockIdx.x - VX[threadIdx.x];
 	outY[index] = *QY - VY[threadIdx.x];
 	outZ[index] = *QZ - VZ[threadIdx.x];
+	
 }
 
 __global__ void vecCross(int* firX, int* firY, int* firZ,
@@ -36,6 +39,11 @@ __global__ void normDot(int* firX, int* firY, int* firZ,
 	sum += firY[index] * secY[threadIdx.x];
 	sum += firZ[index] * secZ[threadIdx.x];
 	if (sum >= 0) check[index] = true;
+	
+		//printf("x: %d crossX: %d crossY: %d crossZ: %d \n", blockIdx.x, firX[index], firY[index], firZ[index]);
+		//printf("x: %d normX: %d normY: %d normZ: %d \n", blockIdx.x, secX[threadIdx.x], secY[threadIdx.x], secZ[threadIdx.x]);
+		//printf("x: %d dot prod: %d \n", blockIdx.x, sum);
+	
 }
 
 __global__ void checkSum(bool* c1, bool* c2, bool* c3,
@@ -45,7 +53,7 @@ __global__ void checkSum(bool* c1, bool* c2, bool* c3,
 	int offset = blockIdx.x * (*actTris);
 	for (int i = 0; i < (*actTris); i++) {
 		index = offset + i;
-		checker = (c1[index] | c2[index]) | c3[index];
+		checker = (c1[index] && c2[index]) && c3[index];
 		if (checker) fills[blockIdx.x] = true;
 	}
 }
@@ -116,108 +124,127 @@ namespace voxel {
 		std::vector<int> activeTris;
 		for (int d = 0; d < depth; d++) {
 			for (int h = 0; h < height; h++) {
-				activeTris.clear();
-				actTriFind(minZTris, maxZTris, minYTris, maxYTris, activeTris, h, d);
-				int numTris = activeTris.size();
-				size = sizeof(int) * numTris;
-				ax = (int*)malloc(size); ay = (int*)malloc(size); az = (int*)malloc(size);
-				bx = (int*)malloc(size); by = (int*)malloc(size); bz = (int*)malloc(size);
-				cx = (int*)malloc(size); cy = (int*)malloc(size); cz = (int*)malloc(size);
-				NX = (int*)malloc(size); NY = (int*)malloc(size); NZ = (int*)malloc(size);
-				for (int i = 0; i < numTris; i++) {
-					std::vector<int> actVecA = triVecs[(activeTris[i] * 3)];
-					std::vector<int> actVecB = triVecs[(activeTris[i] * 3) + 1];
-					std::vector<int> actVecC = triVecs[(activeTris[i] * 3) + 2];
-					ax[i] = actVecA[0]; ay[i] = actVecA[1]; az[i] = actVecA[2];
-					bx[i] = actVecB[0]; by[i] = actVecB[1]; bz[i] = actVecB[2];
-					cx[i] = actVecC[0]; cy[i] = actVecC[1]; cz[i] = actVecC[2];
-					NX[i] = norms[activeTris[i]][0]; NY[i] = norms[activeTris[i]][1]; NZ[i] = norms[activeTris[i]][2];
-				}
-				cudaMalloc((void**)&d_ax, size); cudaMalloc((void**)&d_ay, size); cudaMalloc((void**)&d_az, size);
-				cudaMalloc((void**)&d_bx, size); cudaMalloc((void**)&d_by, size); cudaMalloc((void**)&d_bz, size);
-				cudaMalloc((void**)&d_cx, size); cudaMalloc((void**)&d_cy, size); cudaMalloc((void**)&d_cz, size);
+				//if (h == 1 && d == 1) {
+					activeTris.clear();
+					actTriFind(minZTris, maxZTris, minYTris, maxYTris, activeTris, h, d);
+					printf("Active tris: %d\n", activeTris.size());
+					int numTris = activeTris.size();
+					size = sizeof(int) * numTris;
+					ax = (int*)malloc(size); ay = (int*)malloc(size); az = (int*)malloc(size);
+					bx = (int*)malloc(size); by = (int*)malloc(size); bz = (int*)malloc(size);
+					cx = (int*)malloc(size); cy = (int*)malloc(size); cz = (int*)malloc(size);
+					NX = (int*)malloc(size); NY = (int*)malloc(size); NZ = (int*)malloc(size);
+					for (int i = 0; i < numTris; i++) {
+						std::vector<int> actVecA = triVecs[(activeTris[i] * 3)];
+						std::vector<int> actVecB = triVecs[(activeTris[i] * 3) + 1];
+						std::vector<int> actVecC = triVecs[(activeTris[i] * 3) + 2];
+						ax[i] = actVecA[0]; ay[i] = actVecA[1]; az[i] = actVecA[2];
+						bx[i] = actVecB[0]; by[i] = actVecB[1]; bz[i] = actVecB[2];
+						cx[i] = actVecC[0]; cy[i] = actVecC[1]; cz[i] = actVecC[2];
+						std::vector<int> norm = norms[activeTris[i]];
+						NX[i] = norm[0]; NY[i] = norm[1]; NZ[i] = norm[2];
+					}
+					cudaMalloc((void**)&d_ax, size); cudaMalloc((void**)&d_ay, size); cudaMalloc((void**)&d_az, size);
+					cudaMalloc((void**)&d_bx, size); cudaMalloc((void**)&d_by, size); cudaMalloc((void**)&d_bz, size);
+					cudaMalloc((void**)&d_cx, size); cudaMalloc((void**)&d_cy, size); cudaMalloc((void**)&d_cz, size);
 
-				cudaMalloc((void**)&d_BAX, size); cudaMalloc((void**)&d_BAY, size); cudaMalloc((void**)&d_BAZ, size);
-				cudaMalloc((void**)&d_CBX, size); cudaMalloc((void**)&d_CBY, size); cudaMalloc((void**)&d_CBZ, size);
-				cudaMalloc((void**)&d_ACX, size); cudaMalloc((void**)&d_ACY, size); cudaMalloc((void**)&d_ACZ, size);
+					cudaMalloc((void**)&d_BAX, size); cudaMalloc((void**)&d_BAY, size); cudaMalloc((void**)&d_BAZ, size);
+					cudaMalloc((void**)&d_CBX, size); cudaMalloc((void**)&d_CBY, size); cudaMalloc((void**)&d_CBZ, size);
+					cudaMalloc((void**)&d_ACX, size); cudaMalloc((void**)&d_ACY, size); cudaMalloc((void**)&d_ACZ, size);
 
-				cudaMemcpy(d_ax, ax, size, cudaMemcpyHostToDevice); cudaMemcpy(d_ay, ay, size, cudaMemcpyHostToDevice); cudaMemcpy(d_az, az, size, cudaMemcpyHostToDevice);
-				cudaMemcpy(d_bx, bx, size, cudaMemcpyHostToDevice); cudaMemcpy(d_by, by, size, cudaMemcpyHostToDevice); cudaMemcpy(d_bz, bz, size, cudaMemcpyHostToDevice);
-				cudaMemcpy(d_cx, cx, size, cudaMemcpyHostToDevice); cudaMemcpy(d_cy, cy, size, cudaMemcpyHostToDevice); cudaMemcpy(d_cz, cz, size, cudaMemcpyHostToDevice);
+					cudaMemcpy(d_ax, ax, size, cudaMemcpyHostToDevice); cudaMemcpy(d_ay, ay, size, cudaMemcpyHostToDevice); cudaMemcpy(d_az, az, size, cudaMemcpyHostToDevice);
+					cudaMemcpy(d_bx, bx, size, cudaMemcpyHostToDevice); cudaMemcpy(d_by, by, size, cudaMemcpyHostToDevice); cudaMemcpy(d_bz, bz, size, cudaMemcpyHostToDevice);
+					cudaMemcpy(d_cx, cx, size, cudaMemcpyHostToDevice); cudaMemcpy(d_cy, cy, size, cudaMemcpyHostToDevice); cudaMemcpy(d_cz, cz, size, cudaMemcpyHostToDevice);
 
-				free(ax); free(ay); free(az);
-				free(bx); free(by); free(bz);
-				free(cx); free(cy); free(cz);
+					free(ax); free(ay); free(az);
+					free(bx); free(by); free(bz);
+					free(cx); free(cy); free(cz);
 
-				vecSubDArr << <numTris, 1 >> > (d_bx, d_by, d_bz, d_ax, d_ay, d_az, d_BAX, d_BAY, d_BAZ);
-				vecSubDArr << <numTris, 1 >> > (d_cx, d_cy, d_cz, d_bx, d_by, d_bz, d_CBX, d_CBY, d_CBZ);
-				vecSubDArr << <numTris, 1 >> > (d_ax, d_ay, d_az, d_cx, d_cy, d_cz, d_ACX, d_ACY, d_ACZ);
+					vecSubDArr << <numTris, 1 >> > (d_bx, d_by, d_bz, d_ax, d_ay, d_az, d_BAX, d_BAY, d_BAZ);
+					vecSubDArr << <numTris, 1 >> > (d_cx, d_cy, d_cz, d_bx, d_by, d_bz, d_CBX, d_CBY, d_CBZ);
+					vecSubDArr << <numTris, 1 >> > (d_ax, d_ay, d_az, d_cx, d_cy, d_cz, d_ACX, d_ACY, d_ACZ);
 
-				int rowActTriSize = sizeof(int) * numTris * width;
+					cudaDeviceSynchronize();
 
-				cudaMalloc((void**)&d_QAX, rowActTriSize); cudaMalloc((void**)&d_QAY, rowActTriSize); cudaMalloc((void**)&d_QAZ, rowActTriSize);
-				cudaMalloc((void**)&d_QBX, rowActTriSize); cudaMalloc((void**)&d_QBY, rowActTriSize); cudaMalloc((void**)&d_QBZ, rowActTriSize);
-				cudaMalloc((void**)&d_QCX, rowActTriSize); cudaMalloc((void**)&d_QCY, rowActTriSize); cudaMalloc((void**)&d_QCZ, rowActTriSize);
+					int rowActTriSize = sizeof(int) * numTris * width;
 
-				int dvarsize = sizeof(int);
-				cudaMalloc((void**)&d_QY, dvarsize); cudaMalloc((void**)&d_QZ, dvarsize);
-				cudaMemcpy(d_QY, &h, dvarsize, cudaMemcpyHostToDevice); cudaMemcpy(d_QZ, &d, dvarsize, cudaMemcpyHostToDevice);
+					cudaMalloc((void**)&d_QAX, rowActTriSize); cudaMalloc((void**)&d_QAY, rowActTriSize); cudaMalloc((void**)&d_QAZ, rowActTriSize);
+					cudaMalloc((void**)&d_QBX, rowActTriSize); cudaMalloc((void**)&d_QBY, rowActTriSize); cudaMalloc((void**)&d_QBZ, rowActTriSize);
+					cudaMalloc((void**)&d_QCX, rowActTriSize); cudaMalloc((void**)&d_QCY, rowActTriSize); cudaMalloc((void**)&d_QCZ, rowActTriSize);
 
-				vecSubPoint << <width, numTris >> > (d_QY, d_QZ, d_ax, d_ay, d_az, d_QAX, d_QAY, d_QAZ);
-				vecSubPoint << <width, numTris >> > (d_QY, d_QZ, d_bx, d_by, d_bz, d_QBX, d_QBY, d_QBZ);
-				vecSubPoint << <width, numTris >> > (d_QY, d_QZ, d_cx, d_cy, d_cz, d_QCX, d_QCY, d_QCZ);
+					int dvarsize = sizeof(int);
+					cudaMalloc((void**)&d_QY, dvarsize); cudaMalloc((void**)&d_QZ, dvarsize);
+					cudaMemcpy(d_QY, &h, dvarsize, cudaMemcpyHostToDevice); cudaMemcpy(d_QZ, &d, dvarsize, cudaMemcpyHostToDevice);
 
-				cudaFree(d_QY); cudaFree(d_QZ);
+					vecSubPoint << <width, numTris >> > (d_QY, d_QZ, d_ax, d_ay, d_az, d_QAX, d_QAY, d_QAZ);
+					vecSubPoint << <width, numTris >> > (d_QY, d_QZ, d_bx, d_by, d_bz, d_QBX, d_QBY, d_QBZ);
+					vecSubPoint << <width, numTris >> > (d_QY, d_QZ, d_cx, d_cy, d_cz, d_QCX, d_QCY, d_QCZ);
 
-				cudaFree(d_ax); cudaFree(d_ay); cudaFree(d_az);
-				cudaFree(d_bx); cudaFree(d_by); cudaFree(d_bz);
-				cudaFree(d_cx); cudaFree(d_cy); cudaFree(d_cz);
+					cudaDeviceSynchronize();
 
-				cudaMalloc((void**)&d_BAQAX, rowActTriSize); cudaMalloc((void**)&d_BAQAY, rowActTriSize); cudaMalloc((void**)&d_BAQAZ, rowActTriSize);
-				cudaMalloc((void**)&d_CBQBX, rowActTriSize); cudaMalloc((void**)&d_CBQBY, rowActTriSize); cudaMalloc((void**)&d_CBQBZ, rowActTriSize);
-				cudaMalloc((void**)&d_ACQCX, rowActTriSize); cudaMalloc((void**)&d_ACQCY, rowActTriSize); cudaMalloc((void**)&d_ACQCZ, rowActTriSize);
+					cudaFree(d_QY); cudaFree(d_QZ);
 
-				vecCross << <width, numTris >> > (d_BAX, d_BAY, d_BAZ, d_QAX, d_QAY, d_QAZ, d_BAQAX, d_BAQAY, d_BAQAZ);
-				vecCross << <width, numTris >> > (d_CBX, d_CBY, d_CBZ, d_QBX, d_QBY, d_QBZ, d_CBQBX, d_CBQBY, d_CBQBZ);
-				vecCross << <width, numTris >> > (d_ACX, d_ACY, d_ACZ, d_QCX, d_QCY, d_QCZ, d_ACQCX, d_ACQCY, d_ACQCZ);
+					cudaFree(d_ax); cudaFree(d_ay); cudaFree(d_az);
+					cudaFree(d_bx); cudaFree(d_by); cudaFree(d_bz);
+					cudaFree(d_cx); cudaFree(d_cy); cudaFree(d_cz);
 
-				cudaFree(d_BAX); cudaFree(d_BAY); cudaFree(d_BAZ);
-				cudaFree(d_CBX); cudaFree(d_CBY); cudaFree(d_CBZ);
-				cudaFree(d_ACX); cudaFree(d_ACY); cudaFree(d_ACZ);
+					cudaMalloc((void**)&d_BAQAX, rowActTriSize); cudaMalloc((void**)&d_BAQAY, rowActTriSize); cudaMalloc((void**)&d_BAQAZ, rowActTriSize);
+					cudaMalloc((void**)&d_CBQBX, rowActTriSize); cudaMalloc((void**)&d_CBQBY, rowActTriSize); cudaMalloc((void**)&d_CBQBZ, rowActTriSize);
+					cudaMalloc((void**)&d_ACQCX, rowActTriSize); cudaMalloc((void**)&d_ACQCY, rowActTriSize); cudaMalloc((void**)&d_ACQCZ, rowActTriSize);
 
-				cudaFree(d_QAX); cudaFree(d_QAY); cudaFree(d_QAZ);
-				cudaFree(d_QBX); cudaFree(d_QBY); cudaFree(d_QBZ);
-				cudaFree(d_QCX); cudaFree(d_QCY); cudaFree(d_QCZ);
+					vecCross << <width, numTris >> > (d_BAX, d_BAY, d_BAZ, d_QAX, d_QAY, d_QAZ, d_BAQAX, d_BAQAY, d_BAQAZ);
+					vecCross << <width, numTris >> > (d_CBX, d_CBY, d_CBZ, d_QBX, d_QBY, d_QBZ, d_CBQBX, d_CBQBY, d_CBQBZ);
+					vecCross << <width, numTris >> > (d_ACX, d_ACY, d_ACZ, d_QCX, d_QCY, d_QCZ, d_ACQCX, d_ACQCY, d_ACQCZ);
 
-				int bvarsize = sizeof(bool) * numTris * width;
-				cudaMalloc((void**)&d_C1, bvarsize); cudaMalloc((void**)&d_C2, bvarsize); cudaMalloc((void**)&d_C3, bvarsize);
+					cudaDeviceSynchronize();
 
-				cudaMalloc((void**)&d_NX, size); cudaMalloc((void**)&d_NY, size); cudaMalloc((void**)&d_NZ, size);
-				cudaMemcpy(d_NX, NX, size, cudaMemcpyHostToDevice); cudaMemcpy(d_NY, NY, size, cudaMemcpyHostToDevice); cudaMemcpy(d_NZ, NZ, size, cudaMemcpyHostToDevice);
+					cudaFree(d_BAX); cudaFree(d_BAY); cudaFree(d_BAZ);
+					cudaFree(d_CBX); cudaFree(d_CBY); cudaFree(d_CBZ);
+					cudaFree(d_ACX); cudaFree(d_ACY); cudaFree(d_ACZ);
 
-				normDot << <width, numTris >> > (d_BAQAX, d_BAQAY, d_BAQAZ, d_NX, d_NY, d_NZ, d_C1);
-				normDot << <width, numTris >> > (d_CBQBX, d_CBQBY, d_CBQBZ, d_NX, d_NY, d_NZ, d_C2);
-				normDot << <width, numTris >> > (d_ACQCX, d_ACQCY, d_ACQCZ, d_NX, d_NY, d_NZ, d_C3);
+					cudaFree(d_QAX); cudaFree(d_QAY); cudaFree(d_QAZ);
+					cudaFree(d_QBX); cudaFree(d_QBY); cudaFree(d_QBZ);
+					cudaFree(d_QCX); cudaFree(d_QCY); cudaFree(d_QCZ);
 
-				cudaFree(d_BAQAX); cudaFree(d_BAQAY); cudaFree(d_BAQAZ);
-				cudaFree(d_CBQBX); cudaFree(d_CBQBY); cudaFree(d_CBQBZ);
-				cudaFree(d_ACQCX); cudaFree(d_ACQCY); cudaFree(d_ACQCZ);
-				cudaFree(d_NX); cudaFree(d_NY); cudaFree(d_NZ);
+					int bvarsize = sizeof(bool) * numTris * width;
+					cudaMalloc((void**)&d_C1, bvarsize); cudaMalloc((void**)&d_C2, bvarsize); cudaMalloc((void**)&d_C3, bvarsize);
+
+					cudaMalloc((void**)&d_NX, size); cudaMalloc((void**)&d_NY, size); cudaMalloc((void**)&d_NZ, size);
+					cudaMemcpy(d_NX, NX, size, cudaMemcpyHostToDevice); cudaMemcpy(d_NY, NY, size, cudaMemcpyHostToDevice); cudaMemcpy(d_NZ, NZ, size, cudaMemcpyHostToDevice);
+
+					normDot << <width, numTris >> > (d_BAQAX, d_BAQAY, d_BAQAZ, d_NX, d_NY, d_NZ, d_C1);
+					normDot << <width, numTris >> > (d_CBQBX, d_CBQBY, d_CBQBZ, d_NX, d_NY, d_NZ, d_C2);
+					normDot << <width, numTris >> > (d_ACQCX, d_ACQCY, d_ACQCZ, d_NX, d_NY, d_NZ, d_C3);
+
+					cudaDeviceSynchronize();
+
+					cudaFree(d_BAQAX); cudaFree(d_BAQAY); cudaFree(d_BAQAZ);
+					cudaFree(d_CBQBX); cudaFree(d_CBQBY); cudaFree(d_CBQBZ);
+					cudaFree(d_ACQCX); cudaFree(d_ACQCY); cudaFree(d_ACQCZ);
+					cudaFree(d_NX); cudaFree(d_NY); cudaFree(d_NZ);
 
 
-				bvarsize = sizeof(bool) * width;
-				cudaMalloc((void**)&d_fill, bvarsize);
-				size = sizeof(int);
-				cudaMalloc((void**)&d_numTris, size);
-				cudaMemcpy(d_numTris, &numTris, size, cudaMemcpyHostToDevice);
+					bvarsize = sizeof(bool) * width;
+					cudaMalloc((void**)&d_fill, bvarsize);
+					size = sizeof(int);
+					cudaMalloc((void**)&d_numTris, size);
+					cudaMemcpy(d_numTris, &numTris, size, cudaMemcpyHostToDevice);
 
-				checkSum << <width, 1 >> > (d_C1, d_C2, d_C3, d_numTris, d_fill);
+					checkSum << <width, 1 >> > (d_C1, d_C2, d_C3, d_numTris, d_fill);
 
-				cudaFree(d_C1); cudaFree(d_C2); cudaFree(d_C3); cudaFree(d_numTris);
+					cudaDeviceSynchronize();
 
-				size = sizeof(bool) * width;
-				cudaMemcpy(fills[d][h], d_fill, size, cudaMemcpyDeviceToHost);
-				cudaFree(d_fill);
+					cudaFree(d_C1); cudaFree(d_C2); cudaFree(d_C3); cudaFree(d_numTris);
+
+					size = sizeof(bool) * width;
+					cudaMemcpy(fills[d][h], d_fill, size, cudaMemcpyDeviceToHost);
+					cudaFree(d_fill);
+				/*}
+				else {
+				for (int i = 0; i < width; i++) {
+					fills[d][h][i] = false;
+					}
+				}*/
 			}
 		}
 	}
