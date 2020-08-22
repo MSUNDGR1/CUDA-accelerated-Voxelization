@@ -35,12 +35,10 @@ tri3D::tri3D(vector3D p1, vector3D p2, vector3D p3, vector3D normal) {
 	int y2 = p2.m_y;
 	int y3 = p3.m_y;
 	if (y1 == y2 && y1 == y3) {
-		flat = true;
 		minY = y1;
 		maxY = y1;
 	}
 	else {
-		flat = false;
 		int min1 = std::min(y1, y2);
 		minY = std::min(min1, y3);
 		int max1 = std::max(y1, y2);
@@ -58,7 +56,7 @@ tri3D::tri3D(vector3D p1, vector3D p2, vector3D p3, vector3D normal) {
 	int acy = t_p1.m_y - t_p3.m_y;
 	int acz = t_p1.m_z - t_p3.m_z;
 	AC = vector3D(acx, acy, acz);
-	N = normal;
+	N = vector3D(-normal.m_x, -normal.m_y, -normal.m_z);
 }
 
 tri3D::~tri3D() {
