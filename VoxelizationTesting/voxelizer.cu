@@ -40,7 +40,7 @@ __global__ void vecCross(int* firX, int* firY, int* firZ,
 	outX[index] = (firY[threadIdx.x] * secZ[index]) - (firZ[threadIdx.x] * secY[index]);
 	outY[index] = (firZ[threadIdx.x] * secX[index]) - (firX[threadIdx.x] * secZ[index]);
 	outZ[index] = (firX[threadIdx.x] * secY[index]) - (firY[threadIdx.x] * secX[index]);
-	if (blockIdx.x == 0 && threadIdx.x == 0) printf("firX: %d firY: %d firZ: %d outX: %d outY: %d outZ: %d \n", firX[threadIdx.x], firY[threadIdx.x], firZ[threadIdx.x], outX[index], outY[index], outZ[index]);
+	//if (blockIdx.x == 0 && threadIdx.x == 0) printf("firX: %d firY: %d firZ: %d outX: %d outY: %d outZ: %d \n", firX[threadIdx.x], firY[threadIdx.x], firZ[threadIdx.x], outX[index], outY[index], outZ[index]);
 }
 
 
@@ -54,7 +54,7 @@ __global__ void normDot(int* firX, int* firY, int* firZ,
 	if (sum >= 0) check[index] = true;
 	
 		//if (blockIdx.x == 0) printf("x: %d tri: %d crossX: %d crossY: %d crossZ: %d \n", blockIdx.x, threadIdx.x, firX[index], firY[index], firZ[index]);
-		if (blockIdx.x == 0 && threadIdx.x == 0) printf("x: %d tri: %d normX: %d normY: %d normZ: %d \n", blockIdx.x, threadIdx.x, secX[threadIdx.x], secY[threadIdx.x], secZ[threadIdx.x]);
+		//if (blockIdx.x == 0 && threadIdx.x == 0) printf("x: %d tri: %d normX: %d normY: %d normZ: %d \n", blockIdx.x, threadIdx.x, secX[threadIdx.x], secY[threadIdx.x], secZ[threadIdx.x]);
 		if(blockIdx.x == 0 && threadIdx.x == 0) printf("x: %d tri: %d dot prod: %d \n", blockIdx.x, threadIdx.x, sum);
 	
 }
@@ -72,7 +72,7 @@ __global__ void checkSum(bool* c1, bool* c2, bool* c3,
 }
 
 
-__global__ void angleSum(int* firX, int* firY, int* firZ,
+__global__ void angleFind(int* firX, int* firY, int* firZ,
 	int* secX, int* secY, int* secZ, float* out) {
 
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -86,6 +86,27 @@ __global__ void angleSum(int* firX, int* firY, int* firZ,
 
 	float input = top / (normFir * normSec);
 	out[index] = acosf(input);
+}
+
+
+__global__ void angleSum(float* ang1, float* ang2, float* ang3,
+	bool* intersect) {
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	float sum = abs(ang1[index]) + abs(ang2[index]) + abs(ang3[index]);
+	//printf("X: %d sum: %f \n", blockIdx.x, sum);
+	if (abs(sum - 6.28) < 0.02) intersect[index] = true;
+}
+
+__global__ void intersectCount(int* numTris, bool* intersects, bool* outIntersect) {
+	int indexOffset = blockIdx.x * (*numTris);
+	bool out = false;
+	int intersectCount = 0;
+	for (int i = 0; i < *numTris; i++) {
+		
+		if (intersects[indexOffset + i]) { out = true; intersectCount++; }
+	}
+	outIntersect[blockIdx.x] = out;
+	printf("X: %d Intersections: %d \n", blockIdx.x, intersectCount);
 }
 
 void actTriFind(std::vector<int> minZTris,
@@ -318,62 +339,106 @@ namespace voxel {
 			* d_PBX, * d_PBY, * d_PBZ,
 			* d_PCX, * d_PCY, * d_PCZ;
 
-		float* out1, * out2, * out3;
+		float* d_AB, * d_BC, * d_CA;
 		
-		bool* d_YES;
-
+		bool* d_intersects;
+		bool* d_out;
 		std::vector<int> activeTris;
 		for (int d = 0; d < depth; d++) {
 			for (int h = 0; h < height; h++) {
-				activeTris.clear();
-				actTriFind(minZTris, maxZTris, minYTris, maxYTris, activeTris, h, d);
-				int numTris = activeTris.size();
-				size = sizeof(int) * numTris;
-				ax = (int*)malloc(size); ay = (int*)malloc(size); az = (int*)malloc(size);
-				bx = (int*)malloc(size); by = (int*)malloc(size); bz = (int*)malloc(size);
-				cx = (int*)malloc(size); cy = (int*)malloc(size); cz = (int*)malloc(size);
+				if (d == 9) {
+					activeTris.clear();
+					actTriFind(minZTris, maxZTris, minYTris, maxYTris, activeTris, h, d);
+					int numTris = activeTris.size();
+					size = sizeof(int) * numTris;
+					ax = (int*)malloc(size); ay = (int*)malloc(size); az = (int*)malloc(size);
+					bx = (int*)malloc(size); by = (int*)malloc(size); bz = (int*)malloc(size);
+					cx = (int*)malloc(size); cy = (int*)malloc(size); cz = (int*)malloc(size);
 
-				for (int i = 0; i < numTris; i++) {
-					std::vector<int> actVecA = triVecs[(activeTris[i] * 3)];
-					std::vector<int> actVecB = triVecs[(activeTris[i] * 3) + 1];
-					std::vector<int> actVecC = triVecs[(activeTris[i] * 3) + 2];
-					ax[i] = actVecA[0]; ay[i] = actVecA[1]; az[i] = actVecA[2];
-					bx[i] = actVecB[0]; by[i] = actVecB[1]; bz[i] = actVecB[2];
-					cx[i] = actVecC[0]; cy[i] = actVecC[1]; cz[i] = actVecC[2];
+					for (int i = 0; i < numTris; i++) {
+
+						std::vector<int> actVecA = triVecs[(activeTris[i] * 3)];
+						std::vector<int> actVecB = triVecs[(activeTris[i] * 3) + 1];
+						std::vector<int> actVecC = triVecs[(activeTris[i] * 3) + 2];
+						ax[i] = actVecA[0]; ay[i] = actVecA[1]; az[i] = actVecA[2];
+						bx[i] = actVecB[0]; by[i] = actVecB[1]; bz[i] = actVecB[2];
+						cx[i] = actVecC[0]; cy[i] = actVecC[1]; cz[i] = actVecC[2];
+						
+					}
+
+					cudaMalloc((void**)&d_ax, size); cudaMalloc((void**)&d_ay, size); cudaMalloc((void**)&d_az, size);
+					cudaMalloc((void**)&d_bx, size); cudaMalloc((void**)&d_by, size); cudaMalloc((void**)&d_bz, size);
+					cudaMalloc((void**)&d_cx, size); cudaMalloc((void**)&d_cy, size); cudaMalloc((void**)&d_cz, size);
+
+					cudaMemcpy(d_ax, ax, size, cudaMemcpyHostToDevice); cudaMemcpy(d_ay, ay, size, cudaMemcpyHostToDevice); cudaMemcpy(d_az, az, size, cudaMemcpyHostToDevice);
+					cudaMemcpy(d_bx, bx, size, cudaMemcpyHostToDevice); cudaMemcpy(d_by, by, size, cudaMemcpyHostToDevice); cudaMemcpy(d_bz, bz, size, cudaMemcpyHostToDevice);
+					cudaMemcpy(d_cx, cx, size, cudaMemcpyHostToDevice); cudaMemcpy(d_cy, cy, size, cudaMemcpyHostToDevice); cudaMemcpy(d_cz, cz, size, cudaMemcpyHostToDevice);
+
+					free(ax); free(ay); free(az);
+					free(bx); free(by); free(bz);
+					free(cx); free(cy); free(cz);
+
+					size = sizeof(int) * numTris * width;
+					cudaMalloc((void**)&d_PAX, size); cudaMalloc((void**)&d_PAY, size); cudaMalloc((void**)&d_PAZ, size);
+					cudaMalloc((void**)&d_PBX, size); cudaMalloc((void**)&d_PBY, size); cudaMalloc((void**)&d_PBZ, size);
+					cudaMalloc((void**)&d_PCX, size); cudaMalloc((void**)&d_PCY, size); cudaMalloc((void**)&d_PCZ, size);
+
+					int* d_PY, * d_PZ;
+					size = sizeof(int);
+					cudaMalloc((void**)&d_PY, size); cudaMalloc((void**)&d_PZ, size);
+					cudaMemcpy(d_PY, &h, size, cudaMemcpyHostToDevice);
+					cudaMemcpy(d_PZ, &d, size, cudaMemcpyHostToDevice);
+
+
+					vecSubPointOri << <width, numTris >> > (d_PY, d_PZ, d_ax, d_ay, d_az, d_PAX, d_PAY, d_PAZ);
+					vecSubPointOri << <width, numTris >> > (d_PY, d_PZ, d_bx, d_by, d_bz, d_PBX, d_PBY, d_PBZ);
+					vecSubPointOri << <width, numTris >> > (d_PY, d_PZ, d_cx, d_cy, d_cz, d_PCX, d_PCY, d_PCZ);
+
+					cudaDeviceSynchronize();
+
+					cudaFree(d_PY); cudaFree(d_PZ);
+
+					cudaFree(d_ax); cudaFree(d_ay); cudaFree(d_az);
+					cudaFree(d_bx); cudaFree(d_by); cudaFree(d_bz);
+					cudaFree(d_cx); cudaFree(d_cy); cudaFree(d_cz);
+
+					size = sizeof(float) * numTris * width;
+					cudaMalloc((void**)&d_AB, size);
+					cudaMalloc((void**)&d_BC, size);
+					cudaMalloc((void**)&d_CA, size);
+
+					angleFind << <width, numTris >> > (d_PAX, d_PAY, d_PAZ, d_PBX, d_PBY, d_PBZ, d_AB);
+					angleFind << <width, numTris >> > (d_PBX, d_PBY, d_PBZ, d_PCX, d_PCY, d_PCZ, d_BC);
+					angleFind << <width, numTris >> > (d_PCX, d_PCY, d_PCZ, d_PAX, d_PAY, d_PAZ, d_CA);
+
+					cudaDeviceSynchronize();
+
+					cudaFree(d_PAX); cudaFree(d_PAY); cudaFree(d_PAZ);
+					cudaFree(d_PBX); cudaFree(d_PBY); cudaFree(d_PBZ);
+					cudaFree(d_PCX); cudaFree(d_PCY); cudaFree(d_PCZ);
+
+					size = sizeof(bool) * width * numTris;
+					cudaMalloc((void**)&d_intersects, size);
+					printf("height: %d\n", h);
+					angleSum << <width, numTris >> > (d_AB, d_BC, d_CA, d_intersects);
+
+					cudaDeviceSynchronize();
+
+					cudaFree(d_AB); cudaFree(d_BC); cudaFree(d_CA);
+
+					int* d_numTris;
+					size = sizeof(int);
+					cudaMalloc((void**)&d_numTris, size);
+					cudaMemcpy(d_numTris, &numTris, size, cudaMemcpyHostToDevice);
+
+					size = sizeof(bool) * width;
+					cudaMalloc((void**)&d_out, size);
+
+					intersectCount << <width, 1 >> > (d_numTris, d_intersects, d_out);
+					cudaFree(d_numTris); cudaFree(d_intersects);
+
+					cudaMemcpy(fills[d][h], d_out, size, cudaMemcpyDeviceToHost);
 				}
-
-				cudaMalloc((void**)&d_ax, size); cudaMalloc((void**)&d_ay, size); cudaMalloc((void**)&d_az, size);
-				cudaMalloc((void**)&d_bx, size); cudaMalloc((void**)&d_by, size); cudaMalloc((void**)&d_bz, size);
-				cudaMalloc((void**)&d_cx, size); cudaMalloc((void**)&d_cy, size); cudaMalloc((void**)&d_cz, size);
-
-				cudaMemcpy(d_ax, ax, size, cudaMemcpyHostToDevice); cudaMemcpy(d_ay, ay, size, cudaMemcpyHostToDevice); cudaMemcpy(d_az, az, size, cudaMemcpyHostToDevice);
-				cudaMemcpy(d_bx, bx, size, cudaMemcpyHostToDevice); cudaMemcpy(d_by, by, size, cudaMemcpyHostToDevice); cudaMemcpy(d_bz, bz, size, cudaMemcpyHostToDevice);
-				cudaMemcpy(d_cx, cx, size, cudaMemcpyHostToDevice); cudaMemcpy(d_cy, cy, size, cudaMemcpyHostToDevice); cudaMemcpy(d_cz, cz, size, cudaMemcpyHostToDevice);
-
-				free(ax); free(ay); free(az);
-				free(bx); free(by); free(bz);
-				free(cx); free(cy); free(cz);
-
-				size = sizeof(int) * numTris * width;
-				cudaMalloc((void**)&d_PAX, size); cudaMalloc((void**)&d_PAY, size); cudaMalloc((void**)&d_PAZ, size);
-				cudaMalloc((void**)&d_PBX, size); cudaMalloc((void**)&d_PBY, size); cudaMalloc((void**)&d_PBZ, size);
-				cudaMalloc((void**)&d_PCX, size); cudaMalloc((void**)&d_PCY, size); cudaMalloc((void**)&d_PCZ, size);
-
-				int* d_PY, * d_PZ;
-				size = sizeof(int);
-				cudaMalloc((void**)&d_PY, size); cudaMalloc((void**)&d_PZ, size);
-				cudaMemcpy(d_PY, &h, size, cudaMemcpyHostToDevice);
-				cudaMemcpy(d_PZ, &d, size, cudaMemcpyHostToDevice);
-
-
-				vecSubPointOri << <width, numTris >> > (d_PY, d_PZ, d_ax, d_ay, d_az, d_PAX, d_PAY, d_PAZ);
-				vecSubPointOri << <width, numTris >> > (d_PY, d_PZ, d_bx, d_by, d_bz, d_PBX, d_PBY, d_PBZ);
-				vecSubPointOri << <width, numTris >> > (d_PY, d_PZ, d_cx, d_cy, d_cz, d_PCX, d_PCY, d_PCZ);
-
-				cudaDeviceSynchronize();
-
-
-
 			}
 		}
 	}

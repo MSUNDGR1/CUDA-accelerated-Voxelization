@@ -68,8 +68,8 @@ void print(bool*** fills, int width, int height, int printLev) {
     for (int h = 0; h < height; h++) {
         printLine = "";
         for (int w = 0; w < width; w++) {
-            if (currLev[h][w] == true) printLine += "* ";
-            else printLine += ". ";
+            if (currLev[h][w] == true) printLine += "*";
+            else printLine += "_";
         }
         cout << printLine << endl;
     }
