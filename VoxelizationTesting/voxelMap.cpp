@@ -71,10 +71,10 @@ voxelMap::voxelMap(std::vector<tri3D> input) {
         maxYtris.push_back(input[i].maxY);
     }
 
-    voxel::voxelize(triVecs, norms, width, height, depth, minZtris,
-        maxZtris, minYtris, maxYtris, fills);
-    /*voxel::voxelizeAngle(triVecs, width, height, depth, minZtris,
+   /* voxel::voxelize(triVecs, norms, width, height, depth, minZtris,
         maxZtris, minYtris, maxYtris, fills);*/
+    voxel::voxelizeAngle(triVecs, norms, width, height, depth, minZtris,
+        maxZtris, minYtris, maxYtris, fills);
 
 }
 

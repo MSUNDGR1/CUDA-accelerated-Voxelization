@@ -89,12 +89,12 @@ __global__ void angleFind(int* firX, int* firY, int* firZ,
 }
 
 
-__global__ void angleSum(float* ang1, float* ang2, float* ang3,
+__global__ void angleSum(float* ang1, float* ang2, float* ang3, bool* planeInt,
 	bool* intersect) {
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 	float sum = abs(ang1[index]) + abs(ang2[index]) + abs(ang3[index]);
 	//printf("X: %d sum: %f \n", blockIdx.x, sum);
-	if (abs(sum - 6.28) < 0.02) intersect[index] = true;
+	if (abs(sum - 6.28) < 0.02 && planeInt[index]) intersect[index] = true;
 }
 
 __global__ void intersectCount(int* numTris, bool* intersects, bool* outIntersect) {
@@ -106,7 +106,17 @@ __global__ void intersectCount(int* numTris, bool* intersects, bool* outIntersec
 		if (intersects[indexOffset + i]) { out = true; intersectCount++; }
 	}
 	outIntersect[blockIdx.x] = out;
-	printf("X: %d Intersections: %d \n", blockIdx.x, intersectCount);
+	//printf("X: %d Intersections: %d \n", blockIdx.x, intersectCount);
+}
+
+__global__ void planeIntersect(int* A, int* B, int* C, int* D, int* inY, int* inZ, bool* out) {
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+
+	int sum = blockIdx.x * A[threadIdx.x];
+	sum += (*inY) * B[threadIdx.x];
+	sum += (*inZ) * C[threadIdx.x];
+	if (abs(sum - D[threadIdx.x]) < 0.1) out[index] = true;
+
 }
 
 void actTriFind(std::vector<int> minZTris,
@@ -317,6 +327,7 @@ namespace voxel {
 	}
 
 	void voxelizeAngle(const std::vector<std::vector<int>> triVecs,
+		const std::vector<std::vector<int>> norms,
 		const int width, const int height, const int depth,
 		const std::vector<int> minZTris,
 		const std::vector<int> maxZTris,
@@ -330,7 +341,7 @@ namespace voxel {
 		int * ax, * ay, * az,
 			* bx, * by, * bz,
 			* cx, * cy, * cz;
-
+		int* NX, * NY, * NZ;
 		int * d_ax, * d_ay, * d_az,
 			* d_bx, * d_by, * d_bz,
 			* d_cx, * d_cy, * d_cz;
@@ -341,12 +352,15 @@ namespace voxel {
 
 		float* d_AB, * d_BC, * d_CA;
 		
+		int* PLD; bool* d_plInt;
+		int* d_PLA, * d_PLB, * d_PLC, * d_PLD;
+
 		bool* d_intersects;
 		bool* d_out;
 		std::vector<int> activeTris;
 		for (int d = 0; d < depth; d++) {
 			for (int h = 0; h < height; h++) {
-				if (d == 9) {
+				//if (d == 9) {
 					activeTris.clear();
 					actTriFind(minZTris, maxZTris, minYTris, maxYTris, activeTris, h, d);
 					int numTris = activeTris.size();
@@ -354,7 +368,10 @@ namespace voxel {
 					ax = (int*)malloc(size); ay = (int*)malloc(size); az = (int*)malloc(size);
 					bx = (int*)malloc(size); by = (int*)malloc(size); bz = (int*)malloc(size);
 					cx = (int*)malloc(size); cy = (int*)malloc(size); cz = (int*)malloc(size);
+					NX = (int*)malloc(size); NY = (int*)malloc(size); NZ = (int*)malloc(size);
 
+					PLD = (int*)malloc(size);
+					
 					for (int i = 0; i < numTris; i++) {
 
 						std::vector<int> actVecA = triVecs[(activeTris[i] * 3)];
@@ -363,7 +380,9 @@ namespace voxel {
 						ax[i] = actVecA[0]; ay[i] = actVecA[1]; az[i] = actVecA[2];
 						bx[i] = actVecB[0]; by[i] = actVecB[1]; bz[i] = actVecB[2];
 						cx[i] = actVecC[0]; cy[i] = actVecC[1]; cz[i] = actVecC[2];
-						
+						std::vector<int> norm = norms[activeTris[i]];
+						NX[i] = norm[0]; NY[i] = norm[1]; NZ[i] = norm[2];
+						PLD[i] = norm[0] * ax[i] + norm[1] * ay[i] + norm[2] * az[i];
 					}
 
 					cudaMalloc((void**)&d_ax, size); cudaMalloc((void**)&d_ay, size); cudaMalloc((void**)&d_az, size);
@@ -378,10 +397,12 @@ namespace voxel {
 					free(bx); free(by); free(bz);
 					free(cx); free(cy); free(cz);
 
-					size = sizeof(int) * numTris * width;
-					cudaMalloc((void**)&d_PAX, size); cudaMalloc((void**)&d_PAY, size); cudaMalloc((void**)&d_PAZ, size);
-					cudaMalloc((void**)&d_PBX, size); cudaMalloc((void**)&d_PBY, size); cudaMalloc((void**)&d_PBZ, size);
-					cudaMalloc((void**)&d_PCX, size); cudaMalloc((void**)&d_PCY, size); cudaMalloc((void**)&d_PCZ, size);
+					cudaMalloc((void**)&d_PLA, size); cudaMalloc((void**)&d_PLB, size); cudaMalloc((void**)&d_PLC, size); cudaMalloc((void**)&d_PLD, size); 
+					cudaMemcpy(d_PLA, NX, size, cudaMemcpyHostToDevice); cudaMemcpy(d_PLB, NY, size, cudaMemcpyHostToDevice); 
+					cudaMemcpy(d_PLC, NZ, size, cudaMemcpyHostToDevice); cudaMemcpy(d_PLD, PLD, size, cudaMemcpyHostToDevice);
+
+					size = sizeof(bool) * width * numTris;
+					cudaMalloc((void**)&d_plInt, size);
 
 					int* d_PY, * d_PZ;
 					size = sizeof(int);
@@ -389,6 +410,15 @@ namespace voxel {
 					cudaMemcpy(d_PY, &h, size, cudaMemcpyHostToDevice);
 					cudaMemcpy(d_PZ, &d, size, cudaMemcpyHostToDevice);
 
+					planeIntersect << <width, numTris >> > (d_PLA, d_PLB, d_PLC, d_PLD, d_PY, d_PZ, d_plInt);
+
+					cudaDeviceSynchronize();
+					cudaFree(d_PLA); cudaFree(d_PLB); cudaFree(d_PLC); cudaFree(d_PLD);
+
+					size = sizeof(int) * numTris * width;
+					cudaMalloc((void**)&d_PAX, size); cudaMalloc((void**)&d_PAY, size); cudaMalloc((void**)&d_PAZ, size);
+					cudaMalloc((void**)&d_PBX, size); cudaMalloc((void**)&d_PBY, size); cudaMalloc((void**)&d_PBZ, size);
+					cudaMalloc((void**)&d_PCX, size); cudaMalloc((void**)&d_PCY, size); cudaMalloc((void**)&d_PCZ, size);
 
 					vecSubPointOri << <width, numTris >> > (d_PY, d_PZ, d_ax, d_ay, d_az, d_PAX, d_PAY, d_PAZ);
 					vecSubPointOri << <width, numTris >> > (d_PY, d_PZ, d_bx, d_by, d_bz, d_PBX, d_PBY, d_PBZ);
@@ -419,8 +449,8 @@ namespace voxel {
 
 					size = sizeof(bool) * width * numTris;
 					cudaMalloc((void**)&d_intersects, size);
-					printf("height: %d\n", h);
-					angleSum << <width, numTris >> > (d_AB, d_BC, d_CA, d_intersects);
+					//printf("height: %d\n", h);
+					angleSum << <width, numTris >> > (d_AB, d_BC, d_CA, d_plInt, d_intersects);
 
 					cudaDeviceSynchronize();
 
@@ -438,7 +468,7 @@ namespace voxel {
 					cudaFree(d_numTris); cudaFree(d_intersects);
 
 					cudaMemcpy(fills[d][h], d_out, size, cudaMemcpyDeviceToHost);
-				}
+				//}
 			}
 		}
 	}
