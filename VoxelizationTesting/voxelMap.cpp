@@ -28,7 +28,7 @@ voxelMap::voxelMap(std::vector<tri3D> input) {
     for (int d = 0; d < depth; d++) {
         fills[d] = new bool* [height];
         for (int h = 0; h < height; h++) {
-            fills[d][h] = new bool[width];
+            fills[d][h] = new bool[width]();
         }
     }
 

@@ -116,7 +116,9 @@ __global__ void planeIntersect(int* A, int* B, int* C, int* D, int* inY, int* in
 	sum += (*inY) * B[threadIdx.x];
 	sum += (*inZ) * C[threadIdx.x];
 	if (abs(sum - D[threadIdx.x]) < 0.1) out[index] = true;
-
+	if ((*inY) == 9 && (*inZ) == 9) {
+		printf("Norm: A: %d B: %d C:%d D: %d X: %d \n", A[threadIdx.x], B[threadIdx.x], C[threadIdx.x], D[threadIdx.x], blockIdx.x);
+	}
 }
 
 void actTriFind(std::vector<int> minZTris,
@@ -383,6 +385,7 @@ namespace voxel {
 						std::vector<int> norm = norms[activeTris[i]];
 						NX[i] = norm[0]; NY[i] = norm[1]; NZ[i] = norm[2];
 						PLD[i] = norm[0] * ax[i] + norm[1] * ay[i] + norm[2] * az[i];
+						norm.clear();
 					}
 
 					cudaMalloc((void**)&d_ax, size); cudaMalloc((void**)&d_ay, size); cudaMalloc((void**)&d_az, size);
