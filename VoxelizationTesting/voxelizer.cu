@@ -19,7 +19,7 @@ __global__ void vecSubPoint(int* QY, int* QZ,
 	outY[index] = *QY - VY[threadIdx.x];
 	outZ[index] = *QZ - VZ[threadIdx.x];
 
-	if (blockIdx.x == 0 && threadIdx.x == 0) printf("x: %d tri: %d QVoutX: %d QVoutY: %d QVoutZ: %d  \n", blockIdx.x, threadIdx.x, outX[index], outY[index], outZ[index]);
+	//if (blockIdx.x == 0 && threadIdx.x == 0) printf("x: %d tri: %d QVoutX: %d QVoutY: %d QVoutZ: %d  \n", blockIdx.x, threadIdx.x, outX[index], outY[index], outZ[index]);
 }
 
 __global__ void vecSubPointOri(int* PY, int* PZ,
@@ -44,6 +44,14 @@ __global__ void vecCross(int* firX, int* firY, int* firZ,
 }
 
 
+__global__ void normDotDouble(int* firX, int* firY, int*firZ,
+	int* secX, int* secY, int* secZ, int* out){
+	int sum = firX[blockIdx.x] * secX[blockIdx.x];
+	sum += (firY[blockIdx.x] * secY[blockIdx.x]);
+	sum += (firZ[blockIdx.x] * secZ[blockIdx.x]);
+	out[blockIdx.x] = sum;
+}
+
 __global__ void normDot(int* firX, int* firY, int* firZ,
 	int* secX, int* secY, int* secZ,
 	bool* check) {
@@ -57,6 +65,29 @@ __global__ void normDot(int* firX, int* firY, int* firZ,
 		//if (blockIdx.x == 0 && threadIdx.x == 0) printf("x: %d tri: %d normX: %d normY: %d normZ: %d \n", blockIdx.x, threadIdx.x, secX[threadIdx.x], secY[threadIdx.x], secZ[threadIdx.x]);
 		if(blockIdx.x == 0 && threadIdx.x == 0) printf("x: %d tri: %d dot prod: %d \n", blockIdx.x, threadIdx.x, sum);
 	
+}
+
+__global__ void DCALC(int* uu, int* uv, int* vv, int* D){
+	D[blockIdx.x] = (uv[blockIdx.x] * uv[blockIdx.x]) - (uu[blockIdx.x] * vv[blockIdx.x]);
+}
+
+__global__ void normDotW(int* wx, int* wy, int* wz, int* vecx, int* vecy, int* vecz, int* out){
+	int indexW = blockIdx.x * blockDim.x + threadIdx.x;
+	int sum = wx[indexW] * vecx[threadIdx.x];
+	sum += (wy[indexW] * vecy[threadIdx.x]);
+	sum += (wz[indexW] * vecz[threadIdx.x]);
+	out[indexW] = sum;
+}
+
+__global__ void paramTest(int* uu, int* uv, int* vv, int* wu, int* wv, int* D, bool* intersects) {
+	float s, t;
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	s = (float)(((uv[threadIdx.x] * wv[index]) - (vv[threadIdx.x] * wu[index]))) / D[threadIdx.x];
+	t = (float)(((uv[threadIdx.x] * wu[index]) - (uu[threadIdx.x] * wv[index]))) / D[threadIdx.x];
+	if (!(s < 0.0 || s > 1.0) && !(t < 0.0 || (s + t) > 1.0)) intersects[index] = true;
+
+	printf("D: %d X: %d s: %f t: %f\n",D[threadIdx.x], blockIdx.x, s, t);
+
 }
 
 __global__ void checkSum(bool* c1, bool* c2, bool* c3,
@@ -106,7 +137,7 @@ __global__ void intersectCount(int* numTris, bool* intersects, bool* outIntersec
 		if (intersects[indexOffset + i]) { out = true; intersectCount++; }
 	}
 	outIntersect[blockIdx.x] = out;
-	//printf("X: %d Intersections: %d \n", blockIdx.x, intersectCount);
+	printf("X: %d Intersections: %d \n", blockIdx.x, intersectCount);
 }
 
 __global__ void planeIntersect(int* A, int* B, int* C, int* D, int* inY, int* inZ, bool* out) {
@@ -484,46 +515,109 @@ namespace voxel {
 		const std::vector<int> maxYTris,
 		bool*** fills) {
 		int size;
-		int* ax, * ay, * az,
-			* bx, * by, * bz,
-			* cx, * cy, * cz;
+		int* ax, * ay, * az;
+		int* d_ax, * d_ay, * d_az;
+
 		int* NX, * NY, * NZ;
-		
+		int* d_NX, * d_NY, * d_NZ;
 
 		int* ux, * uy, * uz,
 			* vx, * vy, * vz;
+
+		int* d_ux, * d_uy, * d_uz,
+			* d_vx, * d_vy, * d_vz;
+
+		int* d_wx, * d_wy, * d_wz;
+
+		int* d_uu, * d_uv, * d_vv,
+			* d_wu, * d_wv, * d_D;
 
 		bool* d_intersects;
 		bool* d_out;
 		std::vector<int> activeTris;
 		for (int d = 0; d < depth; d++) {
 			for (int h = 0; h < height; h++) {
-				//if (d == 9) {
-				activeTris.clear();
-				actTriFind(minZTris, maxZTris, minYTris, maxYTris, activeTris, h, d);
-				int numTris = activeTris.size();
-				size = sizeof(int) * numTris;
-				ax = (int*)malloc(size); ay = (int*)malloc(size); az = (int*)malloc(size);
-				bx = (int*)malloc(size); by = (int*)malloc(size); bz = (int*)malloc(size);
-				cx = (int*)malloc(size); cy = (int*)malloc(size); cz = (int*)malloc(size);
-				ux = (int*)malloc(size); uy = (int*)malloc(size); uz = (int*)malloc(size);
-				vx = (int*)malloc(size); vy = (int*)malloc(size); vz = (int*)malloc(size);
-				NX = (int*)malloc(size); NY = (int*)malloc(size); NZ = (int*)malloc(size);
+				if (d == 10) {
+					if (h == 5) {
+						activeTris.clear();
+						actTriFind(minZTris, maxZTris, minYTris, maxYTris, activeTris, h, d);
+						int numTris = activeTris.size();
+						size = sizeof(int) * numTris;
+						ax = (int*)malloc(size); ay = (int*)malloc(size); az = (int*)malloc(size);
 
-				
-				for (int i = 0; i < numTris; i++) {
 
-					std::vector<int> actVecA = triVecs[(activeTris[i] * 3)];
-					std::vector<int> actVecB = triVecs[(activeTris[i] * 3) + 1];
-					std::vector<int> actVecC = triVecs[(activeTris[i] * 3) + 2];
-					ax[i] = actVecA[0]; ay[i] = actVecA[1]; az[i] = actVecA[2];
-					bx[i] = actVecB[0]; by[i] = actVecB[1]; bz[i] = actVecB[2];
-					cx[i] = actVecC[0]; cy[i] = actVecC[1]; cz[i] = actVecC[2];
-					int ux, uy, uz, vx, vy, vz;
-					ux[i] = bx[i] - ax[i]; uy[i] = by[i] - ay[i]; uz[i] = bz[i] - az[i];
+						ux = (int*)malloc(size); uy = (int*)malloc(size); uz = (int*)malloc(size);
+						vx = (int*)malloc(size); vy = (int*)malloc(size); vz = (int*)malloc(size);
+						NX = (int*)malloc(size); NY = (int*)malloc(size); NZ = (int*)malloc(size);
 
-					
-					
+
+						for (int i = 0; i < numTris; i++) {
+
+							std::vector<int> actVecA = triVecs[(activeTris[i] * 3)];
+							std::vector<int> actVecB = triVecs[(activeTris[i] * 3) + 1];
+							std::vector<int> actVecC = triVecs[(activeTris[i] * 3) + 2];
+							ax[i] = actVecA[0]; ay[i] = actVecA[1]; az[i] = actVecA[2];
+
+
+							ux[i] = actVecB[0] - ax[i]; uy[i] = actVecB[1] - ay[i]; uz[i] = actVecB[2] - az[i];
+							vx[i] = actVecC[0] - ax[i]; vy[i] = actVecC[1]; -ay[i]; vz[i] = actVecC[2] - az[i];
+							NX[i] = (uy[i] * vz[i]) - (uz[i] * vy[i]);
+							NY[i] = (uz[i] * vx[i]) - (ux[i] * vz[i]);
+							NZ[i] = (ux[i] * vy[i]) - (uy[i] * vx[i]);
+						}
+
+						int* d_Z, * d_Y;
+						size = sizeof(int); cudaMalloc((void**)&d_Z, size); cudaMalloc((void**)&d_Y, size);
+						cudaMemcpy(d_Z, &d, size, cudaMemcpyHostToDevice); cudaMemcpy(d_Y, &h, size, cudaMemcpyHostToDevice);
+						size = sizeof(int) * numTris * width; cudaMalloc((void**)&d_wx, size); cudaMalloc((void**)&d_wy, size); cudaMalloc((void**)&d_wz, size);
+						size = sizeof(int) * numTris; cudaMalloc((void**)&d_ux, size); cudaMalloc((void**)&d_uy, size); cudaMalloc((void**)&d_uz, size);
+						cudaMalloc((void**)&d_vx, size); cudaMalloc((void**)&d_vy, size); cudaMalloc((void**)&d_vz, size);
+						cudaMemcpy(d_ux, ux, size, cudaMemcpyHostToDevice); cudaMemcpy(d_uy, uy, size, cudaMemcpyHostToDevice); cudaMemcpy(d_uz, uz, size, cudaMemcpyHostToDevice);
+						cudaMemcpy(d_vx, vx, size, cudaMemcpyHostToDevice); cudaMemcpy(d_vy, vy, size, cudaMemcpyHostToDevice); cudaMemcpy(d_vz, vz, size, cudaMemcpyHostToDevice);
+						cudaMalloc((void**)&d_ax, size); cudaMalloc((void**)&d_ay, size); cudaMalloc((void**)&d_az, size);
+						cudaMemcpy(d_ax, ax, size, cudaMemcpyHostToDevice); cudaMemcpy(d_ay, ay, size, cudaMemcpyHostToDevice); cudaMemcpy(d_az, az, size, cudaMemcpyHostToDevice);
+						free(ax); free(ay); free(az);
+						vecSubPoint << <width, numTris >> > (d_Y, d_Z, d_ax, d_ay, d_az, d_wx, d_wy, d_wz);
+
+						cudaFree(d_ax); cudaFree(d_ay); cudaFree(d_az);
+						cudaFree(d_Y); cudaFree(d_Z);
+
+						cudaMalloc((void**)&d_uu, size); cudaMalloc((void**)&d_uv, size); cudaMalloc((void**)&d_vv, size);
+						normDotDouble << <numTris, 1 >> > (d_ux, d_uy, d_uz, d_ux, d_uy, d_uz, d_uu);
+						normDotDouble << <numTris, 1 >> > (d_ux, d_uy, d_uz, d_vx, d_vy, d_vz, d_uv);
+						normDotDouble << <numTris, 1 >> > (d_vx, d_vy, d_vz, d_vx, d_vy, d_vz, d_vv);
+
+						cudaMalloc((void**)&d_D, size);
+						DCALC << <numTris, 1 >> > (d_uu, d_uv, d_vv, d_D);
+
+						size = sizeof(int) * numTris * width;
+						cudaMalloc((void**)&d_wu, size); cudaMalloc((void**)&d_wv, size);
+						normDotW << <width, numTris >> > (d_wx, d_wy, d_wz, d_ux, d_uy, d_uz, d_wu);
+						normDotW << <width, numTris >> > (d_wx, d_wy, d_wz, d_vx, d_vy, d_vz, d_wv);
+
+						cudaFree(d_wx); cudaFree(d_wy); cudaFree(d_wz);
+						cudaFree(d_ux); cudaFree(d_uy); cudaFree(d_uz);
+						cudaFree(d_vx); cudaFree(d_vy); cudaFree(d_vz);
+
+						size = sizeof(bool) * numTris * width;
+						cudaMalloc((void**)&d_intersects, size);
+
+						paramTest << <width, numTris >> > (d_uu, d_uv, d_vv, d_wu, d_wv, d_D, d_intersects);
+
+						cudaFree(d_uu); cudaFree(d_uv); cudaFree(d_vv);
+						cudaFree(d_wu); cudaFree(d_wv); cudaFree(d_D);
+
+						size = sizeof(bool) * width; cudaMalloc((void**)&d_out, size);
+
+						size = sizeof(int); int* d_numTris; cudaMalloc((void**)&d_numTris, size); cudaMemcpy(d_numTris, &numTris, size, cudaMemcpyHostToDevice);
+
+						intersectCount << <width, 1 >> > (d_numTris, d_intersects, d_out);
+						cudaFree(d_numTris); cudaFree(d_intersects);
+						cudaMemcpy(fills[d][h], d_out, size, cudaMemcpyDeviceToHost);
+						cudaFree(d_out);
+					}
 				}
+			}
+		}
 	}
 }
