@@ -475,4 +475,55 @@ namespace voxel {
 			}
 		}
 	}
+
+	void rayVoxel(const std::vector<std::vector<int>> triVecs,
+		const int width, const int height, const int depth,
+		const std::vector<int> minZTris,
+		const std::vector<int> maxZTris,
+		const std::vector<int> minYTris,
+		const std::vector<int> maxYTris,
+		bool*** fills) {
+		int size;
+		int* ax, * ay, * az,
+			* bx, * by, * bz,
+			* cx, * cy, * cz;
+		int* NX, * NY, * NZ;
+		
+
+		int* ux, * uy, * uz,
+			* vx, * vy, * vz;
+
+		bool* d_intersects;
+		bool* d_out;
+		std::vector<int> activeTris;
+		for (int d = 0; d < depth; d++) {
+			for (int h = 0; h < height; h++) {
+				//if (d == 9) {
+				activeTris.clear();
+				actTriFind(minZTris, maxZTris, minYTris, maxYTris, activeTris, h, d);
+				int numTris = activeTris.size();
+				size = sizeof(int) * numTris;
+				ax = (int*)malloc(size); ay = (int*)malloc(size); az = (int*)malloc(size);
+				bx = (int*)malloc(size); by = (int*)malloc(size); bz = (int*)malloc(size);
+				cx = (int*)malloc(size); cy = (int*)malloc(size); cz = (int*)malloc(size);
+				ux = (int*)malloc(size); uy = (int*)malloc(size); uz = (int*)malloc(size);
+				vx = (int*)malloc(size); vy = (int*)malloc(size); vz = (int*)malloc(size);
+				NX = (int*)malloc(size); NY = (int*)malloc(size); NZ = (int*)malloc(size);
+
+				
+				for (int i = 0; i < numTris; i++) {
+
+					std::vector<int> actVecA = triVecs[(activeTris[i] * 3)];
+					std::vector<int> actVecB = triVecs[(activeTris[i] * 3) + 1];
+					std::vector<int> actVecC = triVecs[(activeTris[i] * 3) + 2];
+					ax[i] = actVecA[0]; ay[i] = actVecA[1]; az[i] = actVecA[2];
+					bx[i] = actVecB[0]; by[i] = actVecB[1]; bz[i] = actVecB[2];
+					cx[i] = actVecC[0]; cy[i] = actVecC[1]; cz[i] = actVecC[2];
+					int ux, uy, uz, vx, vy, vz;
+					ux[i] = bx[i] - ax[i]; uy[i] = by[i] - ay[i]; uz[i] = bz[i] - az[i];
+
+					
+					
+				}
+	}
 }
