@@ -21,9 +21,9 @@ voxelMap::voxelMap(std::vector<tri3D> input) {
         if (input[i].t_p3.m_y < hMin) { hMin = input[i].t_p3.m_y; }
         else if (input[i].t_p3.m_y > hMax) hMax = input[i].t_p3.m_y;
     }
-    height = hMax - hMin;
-    width = wMax - wMin;
-    depth = dMax - dMin;
+    height = (hMax - hMin) + 4;
+    width = (wMax - wMin) + 4;
+    depth = (dMax - dMin) + 4;
     fills = new bool** [depth];
     for (int d = 0; d < depth; d++) {
         fills[d] = new bool* [height];
@@ -71,7 +71,7 @@ voxelMap::voxelMap(std::vector<tri3D> input) {
         maxYtris.push_back(input[i].maxY);
     }
 
-   /* voxel::voxelize(triVecs, norms, width, height, depth, minZtris,
+    /*voxel::voxelizeAngle(triVecs, norms, width, height, depth, minZtris,
         maxZtris, minYtris, maxYtris, fills);*/
     voxel::rayVoxel(triVecs, width, height, depth, minZtris, maxZtris,
         minYtris, maxYtris, fills);

@@ -84,9 +84,19 @@ __global__ void paramTest(int* uu, int* uv, int* vv, int* wu, int* wv, int* D, b
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 	s = (float)(((uv[threadIdx.x] * wv[index]) - (vv[threadIdx.x] * wu[index]))) / D[threadIdx.x];
 	t = (float)(((uv[threadIdx.x] * wu[index]) - (uu[threadIdx.x] * wv[index]))) / D[threadIdx.x];
-	if (!(s < 0.0 || s > 1.0) && !(t < 0.0 || (s + t) > 1.0)) intersects[index] = true;
-
-	printf("D: %d X: %d s: %f t: %f\n",D[threadIdx.x], blockIdx.x, s, t);
+	if (!(s == NAN || t == NAN)) {
+		if (!(s < 0.0 || s > 1.0) && !(t < 0.0 || (s + t) > 1.0)) {
+			intersects[index] = true;
+			if (blockIdx.x == 19) {
+				//printf("x: %d index: %d\n", blockIdx.x, index);
+			}
+		}
+		else {
+			intersects[index] = false;
+		}
+	}
+	//printf("X: %d Tri:%d S: %f T: %f\n", blockIdx.x, threadIdx.x, s, t);
+	//printf("D: %d X: %d s: %f t: %f\n",D[threadIdx.x], blockIdx.x, s, t);
 
 }
 
@@ -128,16 +138,22 @@ __global__ void angleSum(float* ang1, float* ang2, float* ang3, bool* planeInt,
 	if (abs(sum - 6.28) < 0.02 && planeInt[index]) intersect[index] = true;
 }
 
-__global__ void intersectCount(int* numTris, bool* intersects, bool* outIntersect) {
+__global__ void intersectCount(int* numTris, bool* intersects, bool* pldIntersects, bool* outIntersect) {
 	int indexOffset = blockIdx.x * (*numTris);
 	bool out = false;
 	int intersectCount = 0;
 	for (int i = 0; i < *numTris; i++) {
 		
-		if (intersects[indexOffset + i]) { out = true; intersectCount++; }
+		if (intersects[indexOffset + i] && pldIntersects[indexOffset + i]) {
+			out = true;
+			intersectCount++; 
+		}
+		if (blockIdx.x == 19) {
+			//printf("X: %d, indexOffset: %d, netIndex: %d\n", blockIdx.x, indexOffset, (indexOffset + i));
+		}
 	}
 	outIntersect[blockIdx.x] = out;
-	printf("X: %d Intersections: %d \n", blockIdx.x, intersectCount);
+	//printf("X: %d Intersections: %d \n", blockIdx.x, intersectCount);
 }
 
 __global__ void planeIntersect(int* A, int* B, int* C, int* D, int* inY, int* inZ, bool* out) {
@@ -146,10 +162,11 @@ __global__ void planeIntersect(int* A, int* B, int* C, int* D, int* inY, int* in
 	int sum = blockIdx.x * A[threadIdx.x];
 	sum += (*inY) * B[threadIdx.x];
 	sum += (*inZ) * C[threadIdx.x];
-	if (abs(sum - D[threadIdx.x]) < 0.1) out[index] = true;
-	if ((*inY) == 9 && (*inZ) == 9) {
+	if (abs(sum - D[threadIdx.x]) < 0.1) { out[index] = true; }
+	else { out[index] = false; }
+	/*if ((*inY) == 9 && (*inZ) == 9) {
 		printf("Norm: A: %d B: %d C:%d D: %d X: %d \n", A[threadIdx.x], B[threadIdx.x], C[threadIdx.x], D[threadIdx.x], blockIdx.x);
-	}
+	}*/
 }
 
 void actTriFind(std::vector<int> minZTris,
@@ -498,10 +515,11 @@ namespace voxel {
 					size = sizeof(bool) * width;
 					cudaMalloc((void**)&d_out, size);
 
-					intersectCount << <width, 1 >> > (d_numTris, d_intersects, d_out);
+					intersectCount << <width, 1 >> > (d_numTris, d_intersects, d_plInt, d_out);
 					cudaFree(d_numTris); cudaFree(d_intersects);
-
+					cudaFree(d_plInt);
 					cudaMemcpy(fills[d][h], d_out, size, cudaMemcpyDeviceToHost);
+					cudaFree(d_out);
 				//}
 			}
 		}
@@ -532,13 +550,15 @@ namespace voxel {
 		int* d_uu, * d_uv, * d_vv,
 			* d_wu, * d_wv, * d_D;
 
+		int* pld, *d_pld; bool* d_pld_intersects;
+
 		bool* d_intersects;
 		bool* d_out;
 		std::vector<int> activeTris;
 		for (int d = 0; d < depth; d++) {
 			for (int h = 0; h < height; h++) {
-				if (d == 10) {
-					if (h == 5) {
+				/*if (d == 2) {
+					if (h == 5) {*/
 						activeTris.clear();
 						actTriFind(minZTris, maxZTris, minYTris, maxYTris, activeTris, h, d);
 						int numTris = activeTris.size();
@@ -549,7 +569,7 @@ namespace voxel {
 						ux = (int*)malloc(size); uy = (int*)malloc(size); uz = (int*)malloc(size);
 						vx = (int*)malloc(size); vy = (int*)malloc(size); vz = (int*)malloc(size);
 						NX = (int*)malloc(size); NY = (int*)malloc(size); NZ = (int*)malloc(size);
-
+						pld = (int*)malloc(size);
 
 						for (int i = 0; i < numTris; i++) {
 
@@ -564,6 +584,8 @@ namespace voxel {
 							NX[i] = (uy[i] * vz[i]) - (uz[i] * vy[i]);
 							NY[i] = (uz[i] * vx[i]) - (ux[i] * vz[i]);
 							NZ[i] = (ux[i] * vy[i]) - (uy[i] * vx[i]);
+							pld[i] = (NX[i] * ax[i]) + (NY[i] * ay[i]) + (NZ[i] * az[i]);
+							//printf("Num: %d (UX: %d UY: %d UZ: %d) (VX: %d VY: %d VZ: %d) (AX: %d AY: %d AZ: %d)\n", i, ux[i], uy[i], uz[i], vx[i], vy[i], vz[i], ax[i], ay[i], az[i]);
 						}
 
 						int* d_Z, * d_Y;
@@ -579,9 +601,21 @@ namespace voxel {
 						free(ax); free(ay); free(az);
 						vecSubPoint << <width, numTris >> > (d_Y, d_Z, d_ax, d_ay, d_az, d_wx, d_wy, d_wz);
 
+						size = sizeof(int) * numTris;
+						cudaMalloc((void**)&d_pld, size); cudaMemcpy(d_pld, pld, size, cudaMemcpyHostToDevice);
+						cudaMalloc((void**)&d_NX, size); cudaMalloc((void**)&d_NY, size); cudaMalloc((void**)&d_NZ, size);
+						cudaMemcpy(d_NX, NX, size, cudaMemcpyHostToDevice); cudaMemcpy(d_NY, NY, size, cudaMemcpyHostToDevice); cudaMemcpy(d_NZ, NZ, size, cudaMemcpyHostToDevice);
+						size = sizeof(bool) * numTris * width;
+						cudaMalloc((void**)&d_pld_intersects, size);
+						
+						planeIntersect << <width, numTris >> > (d_NX, d_NY, d_NZ, d_pld, d_Y, d_Z, d_pld_intersects);
+
+						cudaFree(d_NX); cudaFree(d_NY); cudaFree(d_NZ); cudaFree(d_pld);
+
 						cudaFree(d_ax); cudaFree(d_ay); cudaFree(d_az);
 						cudaFree(d_Y); cudaFree(d_Z);
 
+						size = sizeof(int) * numTris;
 						cudaMalloc((void**)&d_uu, size); cudaMalloc((void**)&d_uv, size); cudaMalloc((void**)&d_vv, size);
 						normDotDouble << <numTris, 1 >> > (d_ux, d_uy, d_uz, d_ux, d_uy, d_uz, d_uu);
 						normDotDouble << <numTris, 1 >> > (d_ux, d_uy, d_uz, d_vx, d_vy, d_vz, d_uv);
@@ -599,9 +633,11 @@ namespace voxel {
 						cudaFree(d_ux); cudaFree(d_uy); cudaFree(d_uz);
 						cudaFree(d_vx); cudaFree(d_vy); cudaFree(d_vz);
 
+						
+
 						size = sizeof(bool) * numTris * width;
 						cudaMalloc((void**)&d_intersects, size);
-
+						
 						paramTest << <width, numTris >> > (d_uu, d_uv, d_vv, d_wu, d_wv, d_D, d_intersects);
 
 						cudaFree(d_uu); cudaFree(d_uv); cudaFree(d_vv);
@@ -611,12 +647,13 @@ namespace voxel {
 
 						size = sizeof(int); int* d_numTris; cudaMalloc((void**)&d_numTris, size); cudaMemcpy(d_numTris, &numTris, size, cudaMemcpyHostToDevice);
 
-						intersectCount << <width, 1 >> > (d_numTris, d_intersects, d_out);
+						intersectCount << <width, 1 >> > (d_numTris, d_intersects, d_pld_intersects, d_out);
 						cudaFree(d_numTris); cudaFree(d_intersects);
+						size = sizeof(bool) * width;
 						cudaMemcpy(fills[d][h], d_out, size, cudaMemcpyDeviceToHost);
 						cudaFree(d_out);
-					}
-				}
+					/*}
+				}*/
 			}
 		}
 	}
