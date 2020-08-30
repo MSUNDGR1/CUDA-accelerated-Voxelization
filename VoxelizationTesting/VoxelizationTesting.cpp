@@ -78,7 +78,7 @@ void print(bool*** fills, int width, int height, int printLev) {
 int main()
 {
     vector<tri3D> tris;
-    stl_in("pyramid.stl", tris);
+    stl_in("encoderMount.stl", tris);
     voxelMap cubeMap(tris);
     int levPrint = 0;
     while (levPrint != 1000) {

@@ -32,7 +32,7 @@ vector3D::vector3D(char* binary, bool normalized) {
 	m_x = (int)(double(*((float*)xC) * 1000));
 	m_y = (int)(double(*((float*)yC) * 1000));
 	m_z = (int)(double(*((float*)zC) * 1000));
-	std::cout << m_x << " " << m_y << " " << m_z << std::endl;
+	//std::cout << m_x << " " << m_y << " " << m_z << std::endl;
 
 }
 
