@@ -162,11 +162,11 @@ __global__ void planeIntersect(int* A, int* B, int* C, int* D, int* inY, int* in
 	int sum = blockIdx.x * A[threadIdx.x];
 	sum += (*inY) * B[threadIdx.x];
 	sum += (*inZ) * C[threadIdx.x];
-	if (abs(sum - D[threadIdx.x]) < 0.1) { out[index] = true; }
+	if (abs(sum - D[threadIdx.x]) < (abs(B[threadIdx.x]) + abs(C[threadIdx.x]) + abs(A[threadIdx.x]))/2) { out[index] = true; }
 	else { out[index] = false; }
-	/*if ((*inY) == 9 && (*inZ) == 9) {
-		printf("Norm: A: %d B: %d C:%d D: %d X: %d \n", A[threadIdx.x], B[threadIdx.x], C[threadIdx.x], D[threadIdx.x], blockIdx.x);
-	}*/
+	if ((*inY) == 2 && (*inZ) == 2 && blockIdx.x == 1) {
+		//printf("X: %d sum: %d D: %d A: %d B: %d C: %d\n", blockIdx.x, sum, D[threadIdx.x], A[threadIdx.x], B[threadIdx.x], C[threadIdx.x]);
+	}
 }
 
 void actTriFind(std::vector<int> minZTris,
@@ -557,8 +557,8 @@ namespace voxel {
 		std::vector<int> activeTris;
 		for (int d = 0; d < depth; d++) {
 			for (int h = 0; h < height; h++) {
-				/*if (d == 2) {
-					if (h == 5) {*/
+				//if (d == 2) {
+					//if (h == 2) {
 						activeTris.clear();
 						actTriFind(minZTris, maxZTris, minYTris, maxYTris, activeTris, h, d);
 						int numTris = activeTris.size();
@@ -580,7 +580,7 @@ namespace voxel {
 
 
 							ux[i] = actVecB[0] - ax[i]; uy[i] = actVecB[1] - ay[i]; uz[i] = actVecB[2] - az[i];
-							vx[i] = actVecC[0] - ax[i]; vy[i] = actVecC[1]; -ay[i]; vz[i] = actVecC[2] - az[i];
+							vx[i] = actVecC[0] - ax[i]; vy[i] = actVecC[1] -ay[i]; vz[i] = actVecC[2] - az[i];
 							NX[i] = (uy[i] * vz[i]) - (uz[i] * vy[i]);
 							NY[i] = (uz[i] * vx[i]) - (ux[i] * vz[i]);
 							NZ[i] = (ux[i] * vy[i]) - (uy[i] * vx[i]);
@@ -652,8 +652,8 @@ namespace voxel {
 						size = sizeof(bool) * width;
 						cudaMemcpy(fills[d][h], d_out, size, cudaMemcpyDeviceToHost);
 						cudaFree(d_out);
-					/*}
-				}*/
+					//}
+				//}
 			}
 		}
 	}
