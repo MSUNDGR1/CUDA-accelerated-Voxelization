@@ -29,6 +29,7 @@ vector3D::vector3D(char* binary, bool normalized) {
 	char yC[4] = { binary[4], binary[5], binary[6], binary[7] };
 	char zC[4] = { binary[8], binary[9], binary[10], binary[11] };
 
+
 	m_x = (int)(double(*((float*)xC) * 1000));
 	m_y = (int)(double(*((float*)yC) * 1000));
 	m_z = (int)(double(*((float*)zC) * 1000));

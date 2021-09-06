@@ -2,6 +2,15 @@
 
 using namespace std;
 
+void voxelMap::fillThrough() {
+    vector<vector<int>> norms;
+
+    /*for (auto& tri : this->input_tris) {
+        norms.push_back(vector<int>{tri.m_x, tri.m_y, tri.m_z});
+    }
+    this->allFills = voxel::filler(this->fills, this->width, this->height, this->depth, norms, this->triInts);*/
+}
+
 voxelMap::voxelMap(std::vector<tri3D> input) {
     for (unsigned int i = 0; i < input.size(); i++) {
         if (input[i].minZ < dMin) dMin = input[i].minZ;
@@ -32,7 +41,7 @@ voxelMap::voxelMap(std::vector<tri3D> input) {
         }
     }
 
-
+    this->input_tris = input;
     vector<vector<int>> triVecs;
     vector<vector<int>> norms;
     vector<int> minZtris;
@@ -71,10 +80,12 @@ voxelMap::voxelMap(std::vector<tri3D> input) {
         maxYtris.push_back(input[i].maxY - hMin);
     }
 
+    
+
     /*voxel::voxelizeAngle(triVecs, norms, width, height, depth, minZtris,
         maxZtris, minYtris, maxYtris, fills);*/
     voxel::rayVoxel(triVecs, width, height, depth, minZtris, maxZtris,
-        minYtris, maxYtris, fills);
+        minYtris, maxYtris, this->fills, this->triInts);
 
 }
 

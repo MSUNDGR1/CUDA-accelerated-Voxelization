@@ -13,7 +13,7 @@ public:
 	~voxelMap();
 
 	bool*** fills;
-
+	std::vector<int>*** triInts;
 	int height;
 	int width;
 	int depth;
@@ -25,7 +25,10 @@ public:
 	int hMax;
 	int wMax;
 	int dMax;
+	std::vector<tri3D> input_tris;
+	bool*** allFills;
 
+	void fillThrough();
 
 	bool compareTri3DMaxZ(tri3D* first, tri3D* second);
 	bool compareTri3DMinZ(tri3D* first, tri3D* second);

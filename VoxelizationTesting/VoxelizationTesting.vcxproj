@@ -147,6 +147,7 @@
     <ClCompile Include="voxelMap.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="gif.h" />
     <ClInclude Include="tri3D.h" />
     <ClInclude Include="vector3D.h" />
     <ClInclude Include="voxelizer.cuh" />

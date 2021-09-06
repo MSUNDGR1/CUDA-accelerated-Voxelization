@@ -16,6 +16,8 @@ namespace voxel {
 		bool*** fills
 	);
 
+	bool*** filler(bool*** shellFills, int xH, int yH, int zH, const std::vector<std::vector<int>> norms, std::vector<int>*** triInts);
+
 	void voxelizeAngle(const std::vector<std::vector<int>> triVecs,
 		const std::vector<std::vector<int>> norms,
 		const int width, const int height, const int depth,
@@ -30,5 +32,5 @@ namespace voxel {
 		const std::vector<int> maxZTris,
 		const std::vector<int> minYTris,
 		const std::vector<int> maxYTris,
-		bool*** fills);
+		bool*** fills, std::vector<int>*** triInts);
 }

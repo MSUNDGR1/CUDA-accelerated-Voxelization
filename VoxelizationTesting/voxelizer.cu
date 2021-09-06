@@ -141,19 +141,24 @@ __global__ void angleSum(float* ang1, float* ang2, float* ang3, bool* planeInt,
 __global__ void intersectCount(int* numTris, bool* intersects, bool* pldIntersects, bool* outIntersect) {
 	int indexOffset = blockIdx.x * (*numTris);
 	bool out = false;
-	int intersectCount = 0;
 	for (int i = 0; i < *numTris; i++) {
-		
 		if (intersects[indexOffset + i] && pldIntersects[indexOffset + i]) {
 			out = true;
-			intersectCount++; 
-		}
-		if (blockIdx.x == 19) {
-			//printf("X: %d, indexOffset: %d, netIndex: %d\n", blockIdx.x, indexOffset, (indexOffset + i));
 		}
 	}
 	outIntersect[blockIdx.x] = out;
 	//printf("X: %d Intersections: %d \n", blockIdx.x, intersectCount);
+}
+
+__global__ void intersectTrack(int* numTris, bool* intersects, bool* pldIntersects, int* realTris, int* realInts, int* numInts) {
+	int indexOffset = blockIdx.x * (*numTris);
+	numInts[blockIdx.x] = 0;
+	for (int i = 0; i < *numTris; i++) {
+		if (intersects[indexOffset + i] && pldIntersects[indexOffset + i]) {
+			realInts[indexOffset + numInts[blockIdx.x]] = realTris[i];
+			numInts[blockIdx.x]++;
+		}
+	}
 }
 
 __global__ void planeIntersect(int* A, int* B, int* C, int* D, int* inY, int* inZ, bool* out) {
@@ -164,9 +169,7 @@ __global__ void planeIntersect(int* A, int* B, int* C, int* D, int* inY, int* in
 	sum += (*inZ) * C[threadIdx.x];
 	if (abs(sum - D[threadIdx.x]) < (abs(B[threadIdx.x]) + abs(C[threadIdx.x]) + abs(A[threadIdx.x]))/2) { out[index] = true; }
 	else { out[index] = false; }
-	if ((*inY) == 2 && (*inZ) == 2 && blockIdx.x == 1) {
-		//printf("X: %d sum: %d D: %d A: %d B: %d C: %d\n", blockIdx.x, sum, D[threadIdx.x], A[threadIdx.x], B[threadIdx.x], C[threadIdx.x]);
-	}
+	
 }
 
 void actTriFind(std::vector<int> minZTris,
@@ -531,7 +534,16 @@ namespace voxel {
 		const std::vector<int> maxZTris,
 		const std::vector<int> minYTris,
 		const std::vector<int> maxYTris,
-		bool*** fills) {
+		bool*** fills, std::vector<int>*** triInts) {
+
+		triInts = new std::vector<int>** [depth];
+		for (int d = 0; d < depth; d++) {
+			triInts[d] = new std::vector<int> * [height];
+			for (int h = 0; h < height; h++) {
+				triInts[d][h] = new std::vector<int>[width]();
+			}
+		}
+
 		int size;
 		int* ax, * ay, * az;
 		int* d_ax, * d_ay, * d_az;
@@ -648,7 +660,36 @@ namespace voxel {
 						size = sizeof(int); int* d_numTris; cudaMalloc((void**)&d_numTris, size); cudaMemcpy(d_numTris, &numTris, size, cudaMemcpyHostToDevice);
 
 						intersectCount << <width, 1 >> > (d_numTris, d_intersects, d_pld_intersects, d_out);
-						cudaFree(d_numTris); cudaFree(d_intersects);
+
+						size = sizeof(int) * numTris;
+						int* realTris = (int*)malloc(size);
+						int* d_realTris;
+						cudaMalloc((void**)&d_realTris, size);
+						for (int i = 0; i < numTris; i++) {
+							realTris[i] = activeTris[i];
+						}
+						cudaMemcpy(d_realTris, realTris, size, cudaMemcpyHostToDevice);
+						size = sizeof(int) * width;
+						int* d_numInts; int* numInts = new int[width];
+						cudaMalloc((void**)&d_numInts, size);
+						size = sizeof(int) * width * numTris;
+						int* d_realTriInts; int* realTriInts = (int*)malloc(size);
+						cudaMalloc((void**)&d_realTriInts, size);
+
+						intersectTrack << <width, 1 >> > (d_numTris, d_intersects, d_pld_intersects, d_realTris, d_realTriInts, d_numInts);
+
+						cudaMemcpy(realTriInts, d_realTriInts, size, cudaMemcpyDeviceToHost);
+						size = sizeof(int) * width;
+						cudaMemcpy(numInts, d_numInts, size, cudaMemcpyDeviceToHost);
+
+						for (int i = 0; i < width; i++) {
+							for (int tri = 0; tri < numInts[i]; tri++) {
+								triInts[d][h][i].push_back(realTriInts[tri]);
+							}
+						}
+						free(numInts); free(realTris); free(realTriInts);
+						cudaFree(d_numInts); cudaFree(d_realTriInts); cudaFree(d_realTris);
+						cudaFree(d_numTris); cudaFree(d_intersects); cudaFree(d_pld_intersects);
 						size = sizeof(bool) * width;
 						cudaMemcpy(fills[d][h], d_out, size, cudaMemcpyDeviceToHost);
 						cudaFree(d_out);
@@ -656,5 +697,19 @@ namespace voxel {
 				//}
 			}
 		}
+	}
+
+	bool*** filler(bool*** shellFills, int width, int height, int depth, const std::vector<std::vector<int>> norms, std::vector<int>*** triInts) {
+		bool*** allFilled = new bool** [depth];
+		for (int d = 0; d < depth; d++) {
+			allFilled[d] = new bool* [height];
+			for (int h = 0; h < height; h++) {
+				allFilled[d][h] = new bool[width]();
+			}
+		}
+
+
+
+		return false;
 	}
 }
