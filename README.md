@@ -12,11 +12,11 @@ CUDA acceleration is used to perform all the annoying trigonometry. When an stl 
 <p float="left">
   <img src="stampOut.gif" width="150" />
   <img src="presstopPic.PNG" width="200" />
-<\p>
+</p>
   
 I do a lot of CAD work with fusion360, and I wanted to do a project that would allow for cool visualizations and simulations with models I make, as well as an excuse to dip my feet into CUDA programming. My only parallelization experience before this was with POSIX threads in C, and that was minimal at best. The original motivation was to create a voxelization tool that would allow for interesting simulations, particularly of neutron interactions with certain metals, to be run much more easily. Voxels are actually quite useful for this purpose as they are a particularly easy base unit to deal with. I had no idea what I was getting into, and the precursor project became a main project.
 
 <p float="left">
   <img src="encoderOut.gif" width="150" />
   <img src="encodermountPic.PNG" width="200" />
-<\p>
+</p>
