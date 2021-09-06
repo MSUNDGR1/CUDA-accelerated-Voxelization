@@ -82,7 +82,7 @@ void gifWrite(bool*** fills, int width, int height, int depth) {
 
     GifWriter out;
     int delay = 10;
-    GifBegin(&out, "stampOut.gif", width, height, delay);
+    GifBegin(&out, "nozzOut.gif", width, height, delay);
 
     for (int d = 0; d < depth; d++) {
         vector<uint8_t> currFrame;
@@ -114,7 +114,7 @@ int main()
 {
     vector<tri3D> tris;
     //stl_in("encoderMount.stl", tris);
-    stl_in("stampTop.stl", tris);
+    stl_in("rocketNozzle.stl", tris);
     voxelMap cubeMap(tris);
     int levPrint = 0;
     bool gifOut = false;
