@@ -110,6 +110,38 @@ void gifWrite(bool*** fills, int width, int height, int depth) {
     GifEnd(&out);
 }
 
+void gifWriteOffaxis(bool*** fills, int width, int height, int depth) {
+    GifWriter out;
+    int delay = 10;
+    GifBegin(&out, "nozzOutOA.gif", depth, height, delay);
+
+    for (int w = 0; w < width; w++) {
+        vector<uint8_t> currFrame;
+
+        for (int h = 0; h < height; h++) {
+            for (int d = 0; d < depth; d++) {
+                if (fills[d][h][w]) {
+                    currFrame.push_back(255);
+                    currFrame.push_back(255);
+                    currFrame.push_back(255);
+                    currFrame.push_back(255);
+                }
+                else {
+                    currFrame.push_back(0);
+                    currFrame.push_back(0);
+                    currFrame.push_back(0);
+                    currFrame.push_back(0);
+                }
+            }
+        }
+
+        GifWriteFrame(&out, currFrame.data(), depth, height, delay);
+        currFrame.clear();
+    }
+    GifEnd(&out);
+
+}
+
 int main()
 {
     vector<tri3D> tris;
@@ -117,18 +149,21 @@ int main()
     stl_in("rocketNozzle.stl", tris);
     voxelMap cubeMap(tris);
     int levPrint = 0;
-    bool gifOut = false;
+    int gifOut = 0;
     while (levPrint != 1000) {
         cout << "enter level to print:";
         cin >> levPrint;
-        if (levPrint == -1){
-            gifOut = true;
+        if (levPrint <0){
+            gifOut = levPrint;
             break;
         }
         print(cubeMap.fills, cubeMap.width, cubeMap.height, levPrint);
     }
-    if (gifOut) {
+    if (gifOut ==-1) {
         gifWrite(cubeMap.fills, cubeMap.width, cubeMap.height, cubeMap.depth);
+    }
+    else if (gifOut == -2) {
+        gifWriteOffaxis(cubeMap.fills, cubeMap.width, cubeMap.height, cubeMap.depth);
     }
 
 }
