@@ -5,6 +5,7 @@
 <p float="center">
   <img src="https://i.imgur.com/fpVrY0p.gif" width="376" />
   <img src="rocketnozzlePic.PNG" width="300" />
+  <img src="https://i.imgur.com/9Yh299T.giff" width="112" />
   <br>
     <em>A converging-diverging nozzle I designed to burn kerosene and high-test peroxide </em>
  </p>
