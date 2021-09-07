@@ -13,8 +13,8 @@
 For large meshes with many triangles (the rocket nozzle above has over 6000), calculating intersections becomes extremely computationaly expensive. CUDA acceleration is used to accelerate this process, as voxelization is mathematically very similar to the graphics calculations that GPUs are designed for. When an stl file is voxelized, we consider individual lines across the 3d grid at a time. *This is actually unoptimal, since most GPUs have enough power to consider entire layers at a time, however I designed this with large STL files in mind, on the order of meters in a dimension. And, I wrote the majority of this when I had very little CS experience, so sue me.* The triangles that are known to intersect that line are then found, and then each point along that line is tested to see if it intersects with any of these triangles. With this, we produce a 3D grid of booleans where every voxel that intersects at least one triangle is filled. 
 
 <p float="center">
-  <img src="stampOut.gif" width="150" />
-  <img src="presstopPic.PNG" width="200" />
+  <img src="stampOut.gif" width="35%" />
+  <img src="presstopPic.PNG" width="45" />
   <br>
     <em>The press head for a rotary press intended to form primer cups out of brass sheet.</em>
 </p>
