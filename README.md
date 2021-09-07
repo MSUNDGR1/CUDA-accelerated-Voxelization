@@ -3,7 +3,7 @@
 **Voxelization method that converts a triangle mesh into a 3d grid of voxels.**
 
 <p float="center">
-  <img src="https://i.imgur.com/fpVrY0p.gif" width="340%" />
+  <img src="https://i.imgur.com/fpVrY0p.gif" width="40%" />
   <img src="rocketnozzlePic.PNG" width="30%" />
   <img src="https://i.imgur.com/9Yh299T.giff" width="20%" />
   <br>
